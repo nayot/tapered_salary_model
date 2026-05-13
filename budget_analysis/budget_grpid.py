@@ -15,7 +15,7 @@ st.set_page_config(
 def load_data():
     try:
         df_new_table = pd.read_parquet("data/new_salary_table.parquet")
-        df_salary_all = pd.read_parquet("data/salary_all_posid.parquet")
+        df_salary_all = pd.read_parquet("data/salary_all_checked_posid.parquet")
     except Exception as e:
         st.error(f"ไม่พบไฟล์ข้อมูล: {e}")
         st.stop()
