@@ -1,0 +1,16 @@
+services:
+  salary-budget:
+    build:
+      context: .
+    image: buu-salary-budget:latest
+    container_name: buu-salary-budget
+    restart: unless-stopped
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    environment:
+      # Optional alternative to [authorization].allowed_emails in secrets.toml.
+      # Use comma-separated lower/upper-case emails; the app normalizes them.
+      ALLOWED_EMAILS: "${ALLOWED_EMAILS:-}"
+    volumes:
+      - "${SALARY_DATA_DIR:-./data}:/app/data:ro"
+      - "${STREAMLIT_SECRETS_FILE:-./.streamlit/secrets.toml}:/app/.streamlit/secrets.toml:ro"
