@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import math
+from datetime import date
 
 # --- 1. SET PAGE CONFIG ---
 st.set_page_config(
@@ -37,6 +38,84 @@ def load_data():
 
 df_new_table, df_salary_all = load_data()
 
+# --- 3. CONSTANTS & REPLACEMENT LOOKUP ---
+CURRENT_YEAR = date.today().year
+
+_repl_cache = {}
+for _g, _deg_filter in [(1, 'เอก'), (2, 'เอก'), (3, 'ตรี'), (4, None)]:
+    _cands = (
+        df_new_table[df_new_table['GRP_ID'] == _g]
+        if _deg_filter is None
+        else df_new_table[(df_new_table['GRP_ID'] == _g) &
+                          (df_new_table['Deg_Pos'].str.contains(_deg_filter, na=False))]
+    )
+    _row = _cands.loc[_cands['Min_New'].idxmin()]
+    _repl_cache[_g] = {'POS_ID': float(_row['POS_ID']), 'Min_New': float(_row['Min_New'])}
+REPLACEMENT_LOOKUP = _repl_cache
+
+
+def _calc_adj_vectorized(df_work, df_ref, pct_val, gamma_val):
+    ref = df_ref[['POS_ID', 'Min_Old', 'Min_New', 'Max_Old', 'Max_New']].drop_duplicates('POS_ID')
+    m = df_work[['เงินเดือน', 'POS_ID']].merge(ref, on='POS_ID', how='left')
+    s = m['เงินเดือน'].to_numpy(float)
+    b_old = m['Min_Old'].to_numpy(float);  b_new = m['Min_New'].to_numpy(float)
+    m_old = m['Max_Old'].to_numpy(float);  m_new = m['Max_New'].to_numpy(float)
+    delta_b = b_new - b_old
+    s_max = b_old + (pct_val / 100.0) * (m_old - b_old)
+    s_max = np.where(s_max <= b_new, b_new + 1.0, s_max)
+    adj = np.where(s < b_new, b_new - s, 0.0)
+    denom = np.where((s_max - b_new) == 0, 1e-9, s_max - b_new)
+    ratio = np.clip(1.0 - (s - b_new) / denom, 0.0, 1.0)
+    adj = np.where((s >= b_new) & (s <= s_max), delta_b * (ratio ** gamma_val), adj)
+    adj = np.where(s + adj > m_new, m_new - s, adj)
+    adj = np.where(adj < 0, 0.0, adj)
+    return np.where(adj > 0, np.ceil(adj / 10.0) * 10.0, 0.0)
+
+
+def project_budget(df_grp_emp, df_ref, pct_val, gamma_val, annual_raise_pct, projection_years):
+    year0_adj   = float(df_grp_emp['final_adj'].sum()) * 12.0
+    year0_total = float((df_grp_emp['เงินเดือน'] + df_grp_emp['final_adj']).sum()) * 12.0
+
+    df_orig = df_grp_emp[['เงินเดือน', 'POS_ID', 'GRP_ID']].copy()
+    df_orig['ret_year_ce'] = df_grp_emp['วันที่เกษียณอายุ'].dt.year - 543
+
+    repl_salaries = np.array([], dtype=float)
+    raise_factor  = 1.0 + annual_raise_pct / 100.0
+
+    records = [{'ปีไทย (พ.ศ.)':       CURRENT_YEAR + 543,
+                'จำนวนพนักงาน':       len(df_grp_emp),
+                'เงินเพิ่มรายปี':      year0_adj,
+                'เงินเดือนรวมรายปี':  year0_total}]
+
+    for yr_offset in range(1, projection_years + 1):
+        sim_year = CURRENT_YEAR + yr_offset
+
+        df_orig = df_orig.copy()
+        df_orig['เงินเดือน'] *= raise_factor
+        repl_salaries = repl_salaries * raise_factor
+
+        mask_retiring = df_orig['ret_year_ce'] == sim_year
+        retirees_grp  = df_orig.loc[mask_retiring, 'GRP_ID'].to_numpy()
+        df_orig = df_orig[~mask_retiring].reset_index(drop=True)
+
+        if len(retirees_grp) > 0:
+            new_sal = np.array([REPLACEMENT_LOOKUP[int(g)]['Min_New'] for g in retirees_grp])
+            repl_salaries = np.concatenate([repl_salaries, new_sal])
+
+        adj_arr    = _calc_adj_vectorized(df_orig, df_ref, pct_val, gamma_val)
+        annual_adj = float(np.nansum(adj_arr)) * 12.0
+        total_salary = float(
+            df_orig['เงินเดือน'].sum() + np.nansum(adj_arr) + repl_salaries.sum()
+        ) * 12.0
+
+        records.append({'ปีไทย (พ.ศ.)':       sim_year + 543,
+                        'จำนวนพนักงาน':       len(df_orig) + len(repl_salaries),
+                        'เงินเพิ่มรายปี':      annual_adj,
+                        'เงินเดือนรวมรายปี':  total_salary})
+
+    return pd.DataFrame(records)
+
+
 # --- 4. SIDEBAR: SELECTION ---
 st.sidebar.header("⚙️ วิเคราะห์งบประมาณภาพรวม")
 
@@ -68,6 +147,11 @@ if not selected_faculties:
 st.sidebar.divider()
 s_max_pct = st.sidebar.slider("จุดตัดชายธง (% ของ Max_Old แต่ละตำแหน่ง)", 0, 120, 100)
 gamma = st.sidebar.slider("ความโค้ง (Gamma - γ)", 0.1, 5.0, 1.0, 0.1)
+
+st.sidebar.divider()
+st.sidebar.subheader("📈 การพยากรณ์งบประมาณ")
+annual_raise_pct = st.sidebar.slider("อัตราเพิ่มเงินเดือนรายปี (%)", 0.0, 10.0, 4.0, 0.5)
+projection_years = st.sidebar.slider("จำนวนปีที่พยากรณ์", 1, 20, 10)
 
 # --- 5. LOGIC FUNCTIONS ---
 def calculate_adjustment(emp_row, df_ref, pct_val, gamma_val):
@@ -208,3 +292,53 @@ if not df_grp_emp.empty:
     ))
     fig.update_layout(xaxis_title="กลุ่ม/ตำแหน่ง", yaxis_title="เงินเพิ่ม (บาท)", template="plotly_white", height=500)
     st.plotly_chart(fig, use_container_width=True)
+
+# --- 10. BUDGET PROJECTION ---
+st.divider()
+st.subheader("📈 การพยากรณ์งบประมาณในอนาคต")
+
+if not df_grp_emp.empty:
+    proj_df = project_budget(df_grp_emp, df_new_table, s_max_pct, gamma,
+                              annual_raise_pct, projection_years)
+    year0_adj   = proj_df['เงินเพิ่มรายปี'].iloc[0]
+    year0_total = proj_df['เงินเดือนรวมรายปี'].iloc[0]
+
+    fig_proj = go.Figure()
+    fig_proj.add_trace(go.Scatter(
+        x=proj_df['ปีไทย (พ.ศ.)'], y=proj_df['เงินเพิ่มรายปี'],
+        mode='lines+markers', name='เงินเพิ่มรายปี',
+        yaxis='y1', line=dict(color='#0068c9', width=3), marker=dict(size=7),
+        hovertemplate='%{x}: %{y:,.0f} บาท<extra>เงินเพิ่ม</extra>'
+    ))
+    fig_proj.add_trace(go.Scatter(
+        x=proj_df['ปีไทย (พ.ศ.)'], y=proj_df['เงินเดือนรวมรายปี'],
+        mode='lines+markers', name='เงินเดือนรวมรายปี',
+        yaxis='y2', line=dict(color='#ff8c00', width=3, dash='dot'), marker=dict(size=7),
+        hovertemplate='%{x}: %{y:,.0f} บาท<extra>เงินเดือนรวม</extra>'
+    ))
+    fig_proj.update_layout(
+        xaxis_title='ปีงบประมาณ (พ.ศ.)',
+        yaxis=dict(title=dict(text='เงินเพิ่มรายปี (บาท)', font=dict(color='#0068c9'))),
+        yaxis2=dict(title=dict(text='เงินเดือนรวมรายปี (บาท)', font=dict(color='#ff8c00')),
+                    overlaying='y', side='right'),
+        template='plotly_white', height=450, hovermode='x unified',
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
+    )
+    st.plotly_chart(fig_proj, use_container_width=True)
+
+    st.subheader("📋 ตารางสรุปการพยากรณ์งบประมาณ")
+    tbl = proj_df.copy()
+    tbl['Δ เงินเพิ่ม']     = tbl['เงินเพิ่มรายปี']    - year0_adj
+    tbl['Δ เงินเดือนรวม']  = tbl['เงินเดือนรวมรายปี'] - year0_total
+    st.dataframe(
+        tbl[['ปีไทย (พ.ศ.)', 'จำนวนพนักงาน',
+             'เงินเพิ่มรายปี', 'Δ เงินเพิ่ม',
+             'เงินเดือนรวมรายปี', 'Δ เงินเดือนรวม']]
+        .style.format({
+            'เงินเพิ่มรายปี':     '{:,.0f}',
+            'Δ เงินเพิ่ม':        '{:+,.0f}',
+            'เงินเดือนรวมรายปี': '{:,.0f}',
+            'Δ เงินเดือนรวม':    '{:+,.0f}',
+        }),
+        use_container_width=True, hide_index=True
+    )
