@@ -6,7 +6,7 @@ services:
     container_name: buu-salary-budget
     restart: unless-stopped
     ports:
-      - "${STREAMLIT_PORT:-8501}:8501"
+      - "127.0.0.1:${STREAMLIT_PORT:-8501}:8501"
     environment:
       # Optional alternative to [authorization].allowed_emails in secrets.toml.
       # Use comma-separated lower/upper-case emails; the app normalizes them.
