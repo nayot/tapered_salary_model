@@ -55,6 +55,16 @@ hiring_type = st.sidebar.selectbox(
     options=["ทั้งหมด", "เงินอุดหนุนรัฐบาล", "เงินรายได้ส่วนงาน"]
 )
 
+faculty_options = sorted(df_salary_all['สังกัดคณะ'].dropna().unique().tolist())
+selected_faculties = st.sidebar.multiselect(
+    "เลือกสังกัดคณะ",
+    options=faculty_options,
+    default=faculty_options,
+    placeholder="เลือกคณะ/หน่วยงาน..."
+)
+if not selected_faculties:
+    selected_faculties = faculty_options
+
 st.sidebar.divider()
 s_max_pct = st.sidebar.slider("จุดตัดชายธง (% ของ Max_Old แต่ละตำแหน่ง)", 0, 120, 100)
 gamma = st.sidebar.slider("ความโค้ง (Gamma - γ)", 0.1, 5.0, 1.0, 0.1)
@@ -100,6 +110,10 @@ if "รัฐบาล" in hiring_type:
     df_grp_emp = df_grp_emp[df_grp_emp['ประเภทบุคลากร'].str.contains('รัฐบาล', na=False)]
 elif "รายได้" in hiring_type:
     df_grp_emp = df_grp_emp[df_grp_emp['ประเภทบุคลากร'].str.contains('รายได้', na=False)]
+
+# กรองสังกัดคณะ
+if len(selected_faculties) < len(faculty_options):
+    df_grp_emp = df_grp_emp[df_grp_emp['สังกัดคณะ'].isin(selected_faculties)]
 
 # คำนวณเงินเพิ่ม
 df_grp_emp['final_adj'] = df_grp_emp.apply(
