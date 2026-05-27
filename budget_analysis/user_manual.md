@@ -23,8 +23,7 @@ header-includes:
   - \renewcommand{\headrulewidth}{0.4pt}
   - \usepackage{fontspec}
   - \newfontfamily\greekfallback{DejaVu Serif}
-toc: true
-toc-depth: 2
+  - \setcounter{tocdepth}{2}
 numbersections: true
 ---
 
@@ -46,6 +45,8 @@ numbersections: true
 {\normalsize พฤษภาคม 2569}
 \end{center}
 
+\newpage
+\tableofcontents
 \newpage
 
 # ภาพรวมระบบ
