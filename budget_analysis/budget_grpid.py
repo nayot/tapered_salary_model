@@ -146,12 +146,10 @@ def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
         adj_arr    = np.zeros(len(df_orig)) if skip_adj else _calc_adj_vectorized(df_orig, df_ref, pct_val, gamma_val)
         annual_adj = float(np.nansum(adj_arr)) * 12.0
 
-        # combine actual employees and replacements for fund calculations
-        all_salaries = np.concatenate([
-            df_orig['เงินเดือน'].to_numpy(float),
-            repl_salaries,
-        ])
-        n_total = len(all_salaries)
+        # actual salary paid = base + adjustment; replacements enter at their rate
+        emp_paid     = df_orig['เงินเดือน'].to_numpy(float) + adj_arr
+        all_salaries = np.concatenate([emp_paid, repl_salaries])
+        n_total      = len(all_salaries)
         total_salary = float(all_salaries.sum()) * 12.0
 
         funds = _fund_totals_for_year(all_salaries, n_total, sim_year, ss_rate, pf_rate, bm_rate)
