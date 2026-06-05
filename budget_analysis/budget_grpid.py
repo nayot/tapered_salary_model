@@ -104,7 +104,8 @@ def _fund_totals_for_year(salaries_arr: np.ndarray, n_emp: int,
 def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
                    annual_raise_pct, projection_years,
                    ss_rate, pf_rate, bm_rate,
-                   skip_adj: bool = False):
+                   skip_adj: bool = False,
+                   extended_ceiling: bool = False):
     adj0 = df_grp_emp['final_adj'].to_numpy(float)
     sal0 = df_grp_emp['เงินเดือน'].to_numpy(float)
     new_sal0 = sal0 if skip_adj else sal0 + adj0
@@ -118,6 +119,11 @@ def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
     df_orig = df_grp_emp[['เงินเดือน', 'POS_ID', 'GRP_ID']].copy()
     df_orig['ret_year_ce'] = df_grp_emp['วันที่เกษียณอายุ'].dt.year - 543
     df_orig['Max_New'] = df_orig['POS_ID'].map(max_new_map).to_numpy(float)
+    if extended_ceiling:
+        grp_max = df_ref[df_ref['GRP_ID'].isin([1, 2])].groupby('GRP_ID')['Max_New'].max()
+        for grp_id in [1, 2]:
+            if grp_id in grp_max.index:
+                df_orig.loc[df_orig['GRP_ID'] == grp_id, 'Max_New'] = grp_max[grp_id]
 
     repl_salaries = np.array([], dtype=float)
     raise_factor  = 1.0 + annual_raise_pct / 100.0
@@ -432,6 +438,22 @@ if not df_grp_emp.empty:
         + baseline_df['เงินสมทบบูรพามั่นคงรายปี']
     )
 
+    upper_df = project_budget(
+        df_grp_emp, df_new_table, s_max_pct, gamma,
+        annual_raise_pct, projection_years,
+        ss_rate if ss_include else 0.0,
+        pf_rate if pf_include else 0.0,
+        bm_rate if bm_include else 0.0,
+        extended_ceiling=True,
+    )
+    upper_df['งบประมาณรวมทั้งหมด (upper)'] = (
+        upper_df['เงินเดือนรวมรายปี']
+        + upper_df['เงินสมทบประกันสังคมรายปี']
+        + upper_df['เงินสมทบสำรองเลี้ยงชีพรายปี']
+        + (upper_df['เงินสมทบสวัสดิการรายปี'] if wf_include else 0)
+        + upper_df['เงินสมทบบูรพามั่นคงรายปี']
+    )
+
     fig_proj = go.Figure()
     fig_proj.add_trace(go.Scatter(
         x=proj_df['ปีไทย (พ.ศ.)'], y=proj_df['เงินเพิ่มรายปี'],
@@ -454,12 +476,26 @@ if not df_grp_emp.empty:
         ))
     fig_proj.add_trace(go.Scatter(
         x=proj_df['ปีไทย (พ.ศ.)'], y=proj_df['งบประมาณรวมทั้งหมดรายปี'],
-        mode='lines+markers', name='งบประมาณรวมทั้งหมด',
+        mode='lines+markers', name='งบประมาณรวมทั้งหมด (lower)',
         yaxis='y2',
-        fill='tonexty' if show_baseline else None,
-        fillcolor='rgba(214, 39, 40, 0.15)' if show_baseline else None,
+        line=dict(color='#2ca02c', width=2, dash='dot'), marker=dict(size=6),
+        hovertemplate='%{x}: %{y:,.0f} บาท<extra>รวมทั้งหมด (lower)</extra>'
+    ))
+    fig_proj.add_trace(go.Scatter(
+        x=upper_df['ปีไทย (พ.ศ.)'], y=upper_df['งบประมาณรวมทั้งหมด (upper)'],
+        mode='lines+markers', name='งบประมาณรวมทั้งหมด (upper)',
+        yaxis='y2',
+        fill='tonexty', fillcolor='rgba(214, 39, 40, 0.12)',
+        line=dict(color='#d62728', width=2, dash='dot'), marker=dict(size=6),
+        hovertemplate='%{x}: %{y:,.0f} บาท<extra>รวมทั้งหมด (upper)</extra>'
+    ))
+    _avg_y = (proj_df['งบประมาณรวมทั้งหมดรายปี'].values + upper_df['งบประมาณรวมทั้งหมด (upper)'].values) / 2
+    fig_proj.add_trace(go.Scatter(
+        x=proj_df['ปีไทย (พ.ศ.)'], y=_avg_y,
+        mode='lines+markers', name='งบประมาณรวมทั้งหมด (avg)',
+        yaxis='y2',
         line=dict(color='#d62728', width=3), marker=dict(size=7),
-        hovertemplate='%{x}: %{y:,.0f} บาท<extra>รวมทั้งหมด</extra>'
+        hovertemplate='%{x}: %{y:,.0f} บาท<extra>รวมทั้งหมด (avg)</extra>'
     ))
 
     if show_fund_graphs:
@@ -495,6 +531,8 @@ if not df_grp_emp.empty:
     tbl['Δ เงินเดือนรวม'] = tbl['เงินเดือนรวมรายปี'].diff()
     tbl['Δ รวมทั้งหมด']   = tbl['งบประมาณรวมทั้งหมดรายปี'].diff()
     tbl['งบฐาน (ไม่มีเงินเพิ่ม)'] = baseline_df['งบประมาณรวมฐานรายปี'].values
+    tbl['งบประมาณรวมทั้งหมด (upper)'] = upper_df['งบประมาณรวมทั้งหมด (upper)'].values
+    tbl['งบประมาณรวมทั้งหมด (avg)']   = (tbl['งบประมาณรวมทั้งหมดรายปี'].values + tbl['งบประมาณรวมทั้งหมด (upper)'].values) / 2
 
     display_cols = ['ปีไทย (พ.ศ.)', 'จำนวนพนักงาน',
                     'เงินเพิ่มรายปี', 'Δ เงินเพิ่ม',
@@ -517,10 +555,13 @@ if not df_grp_emp.empty:
     if bm_include:
         display_cols.append('เงินสมทบบูรพามั่นคงรายปี')
         fmt['เงินสมทบบูรพามั่นคงรายปี'] = '{:,.0f}'
-    display_cols += ['งบประมาณรวมทั้งหมดรายปี', 'Δ รวมทั้งหมด', 'งบฐาน (ไม่มีเงินเพิ่ม)']
+    display_cols += ['งบประมาณรวมทั้งหมดรายปี', 'Δ รวมทั้งหมด', 'งบฐาน (ไม่มีเงินเพิ่ม)',
+                     'งบประมาณรวมทั้งหมด (upper)', 'งบประมาณรวมทั้งหมด (avg)']
     fmt['งบประมาณรวมทั้งหมดรายปี'] = '{:,.0f}'
     fmt['Δ รวมทั้งหมด'] = '{:+,.0f}'
     fmt['งบฐาน (ไม่มีเงินเพิ่ม)'] = '{:,.0f}'
+    fmt['งบประมาณรวมทั้งหมด (upper)'] = '{:,.0f}'
+    fmt['งบประมาณรวมทั้งหมด (avg)']   = '{:,.0f}'
 
     st.dataframe(
         tbl[display_cols].style.format(fmt),
@@ -609,6 +650,8 @@ if not df_grp_emp.empty:
             'งบประมาณรวมทั้งหมดรายปี':        'รวมทั้งหมด/ปี',
             'Δ รวมทั้งหมด':                   'Δ รวม',
             'งบฐาน (ไม่มีเงินเพิ่ม)':         'งบฐาน',
+            'งบประมาณรวมทั้งหมด (upper)':       'รวม (upper)',
+            'งบประมาณรวมทั้งหมด (avg)':         'รวม (avg)',
         }
         proj_headers = [short_names.get(c, c) for c in display_cols]
         n_cols = len(display_cols)
