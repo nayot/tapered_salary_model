@@ -602,16 +602,17 @@ if not df_grp_emp.empty:
 
         return bytes(pdf.output())
 
+    xlsx_bytes = build_xlsx(tbl, breakdown_df)
+    pdf_bytes  = build_pdf(tbl, breakdown_df)
+
     col_xl, col_pdf = st.columns(2)
     with col_xl:
-        xlsx_bytes = build_xlsx(tbl, breakdown_df)
         st.download_button(
             "⬇ ดาวน์โหลด Excel (.xlsx)", xlsx_bytes,
             file_name="budget_forecast.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     with col_pdf:
-        pdf_bytes = build_pdf(tbl, breakdown_df)
         st.download_button(
             "⬇ ดาวน์โหลด PDF", pdf_bytes,
             file_name="budget_forecast.pdf",
