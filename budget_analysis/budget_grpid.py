@@ -545,7 +545,10 @@ if not df_grp_emp.empty:
 
             pdf.set_font("Sarabun", "", font_size)
             for i, row in enumerate(rows):
-                pdf.set_fill_color(240, 245, 255) if i % 2 == 0 else pdf.set_fill_color(255, 255, 255)
+                if i % 2 == 0:
+                    pdf.set_fill_color(240, 245, 255)
+                else:
+                    pdf.set_fill_color(255, 255, 255)
                 for val, w in zip(row, col_widths):
                     pdf.cell(w, 6, str(val), border=1, fill=True)
                 pdf.ln()
