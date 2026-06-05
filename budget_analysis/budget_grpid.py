@@ -412,26 +412,23 @@ if not df_grp_emp.empty:
         + proj_df['เงินสมทบบูรพามั่นคงรายปี']
     )
 
-    year0_adj_val   = proj_df['เงินเพิ่มรายปี'].iloc[0]
-    year0_total_val = proj_df['เงินเดือนรวมรายปี'].iloc[0]
-    year0_grand_val = proj_df['งบประมาณรวมทั้งหมดรายปี'].iloc[0]
 
-    if show_baseline:
-        baseline_df = project_budget(
-            df_grp_emp, df_new_table, s_max_pct, gamma,
-            annual_raise_pct, projection_years,
-            ss_rate if ss_include else 0.0,
-            pf_rate if pf_include else 0.0,
-            bm_rate if bm_include else 0.0,
-            skip_adj=True,
-        )
-        baseline_df['งบประมาณรวมฐานรายปี'] = (
-            baseline_df['เงินเดือนรวมรายปี']
-            + baseline_df['เงินสมทบประกันสังคมรายปี']
-            + baseline_df['เงินสมทบสำรองเลี้ยงชีพรายปี']
-            + (baseline_df['เงินสมทบสวัสดิการรายปี'] if wf_include else 0)
-            + baseline_df['เงินสมทบบูรพามั่นคงรายปี']
-        )
+
+    baseline_df = project_budget(
+        df_grp_emp, df_new_table, s_max_pct, gamma,
+        annual_raise_pct, projection_years,
+        ss_rate if ss_include else 0.0,
+        pf_rate if pf_include else 0.0,
+        bm_rate if bm_include else 0.0,
+        skip_adj=True,
+    )
+    baseline_df['งบประมาณรวมฐานรายปี'] = (
+        baseline_df['เงินเดือนรวมรายปี']
+        + baseline_df['เงินสมทบประกันสังคมรายปี']
+        + baseline_df['เงินสมทบสำรองเลี้ยงชีพรายปี']
+        + (baseline_df['เงินสมทบสวัสดิการรายปี'] if wf_include else 0)
+        + baseline_df['เงินสมทบบูรพามั่นคงรายปี']
+    )
 
     fig_proj = go.Figure()
     fig_proj.add_trace(go.Scatter(
@@ -492,9 +489,10 @@ if not df_grp_emp.empty:
     # --- Projection summary table ---
     st.subheader("📋 ตารางสรุปการพยากรณ์งบประมาณ")
     tbl = proj_df.copy()
-    tbl['Δ เงินเพิ่ม']    = tbl['เงินเพิ่มรายปี']           - year0_adj_val
-    tbl['Δ เงินเดือนรวม'] = tbl['เงินเดือนรวมรายปี']        - year0_total_val
-    tbl['Δ รวมทั้งหมด']   = tbl['งบประมาณรวมทั้งหมดรายปี'] - year0_grand_val
+    tbl['Δ เงินเพิ่ม']    = tbl['เงินเพิ่มรายปี'].diff()
+    tbl['Δ เงินเดือนรวม'] = tbl['เงินเดือนรวมรายปี'].diff()
+    tbl['Δ รวมทั้งหมด']   = tbl['งบประมาณรวมทั้งหมดรายปี'].diff()
+    tbl['งบฐาน (ไม่มีเงินเพิ่ม)'] = baseline_df['งบประมาณรวมฐานรายปี'].values
 
     display_cols = ['ปีไทย (พ.ศ.)', 'จำนวนพนักงาน',
                     'เงินเพิ่มรายปี', 'Δ เงินเพิ่ม',
@@ -517,9 +515,10 @@ if not df_grp_emp.empty:
     if bm_include:
         display_cols.append('เงินสมทบบูรพามั่นคงรายปี')
         fmt['เงินสมทบบูรพามั่นคงรายปี'] = '{:,.0f}'
-    display_cols += ['งบประมาณรวมทั้งหมดรายปี', 'Δ รวมทั้งหมด']
+    display_cols += ['งบประมาณรวมทั้งหมดรายปี', 'Δ รวมทั้งหมด', 'งบฐาน (ไม่มีเงินเพิ่ม)']
     fmt['งบประมาณรวมทั้งหมดรายปี'] = '{:,.0f}'
     fmt['Δ รวมทั้งหมด'] = '{:+,.0f}'
+    fmt['งบฐาน (ไม่มีเงินเพิ่ม)'] = '{:,.0f}'
 
     st.dataframe(
         tbl[display_cols].style.format(fmt),
@@ -607,6 +606,7 @@ if not df_grp_emp.empty:
             'เงินสมทบบูรพามั่นคงรายปี':       'บูรพา มั่นคง',
             'งบประมาณรวมทั้งหมดรายปี':        'รวมทั้งหมด/ปี',
             'Δ รวมทั้งหมด':                   'Δ รวม',
+            'งบฐาน (ไม่มีเงินเพิ่ม)':         'งบฐาน',
         }
         proj_headers = [short_names.get(c, c) for c in display_cols]
         n_cols = len(display_cols)
