@@ -13,6 +13,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app.py budget_grpid.py budget_posid.py ./
 COPY .streamlit/config.toml ./.streamlit/config.toml
+COPY fonts/ ./fonts/
 
 RUN useradd --create-home --shell /usr/sbin/nologin streamlit \
     && chown -R streamlit:streamlit /app
