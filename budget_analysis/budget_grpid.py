@@ -450,7 +450,7 @@ if not df_grp_emp.empty:
         fig_proj.add_trace(go.Scatter(
             x=baseline_df['ปีไทย (พ.ศ.)'], y=baseline_df['งบประมาณรวมฐานรายปี'],
             mode='lines+markers', name='งบฐาน (ไม่มีเงินเพิ่ม)',
-            yaxis='y2', line=dict(color='#aaaaaa', width=2, dash='dot'), marker=dict(size=5),
+            yaxis='y2', line=dict(color='#aaaaaa', width=2), marker=dict(size=5),
             hovertemplate='%{x}: %{y:,.0f} บาท<extra>งบฐาน</extra>'
         ))
     fig_proj.add_trace(go.Scatter(
