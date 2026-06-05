@@ -114,8 +114,10 @@ def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
     year0_funds = _fund_totals_for_year(new_sal0, len(df_grp_emp), CURRENT_YEAR,
                                          ss_rate, pf_rate, bm_rate)
 
+    max_new_map = df_ref[['POS_ID', 'Max_New']].drop_duplicates('POS_ID').set_index('POS_ID')['Max_New']
     df_orig = df_grp_emp[['เงินเดือน', 'POS_ID', 'GRP_ID']].copy()
     df_orig['ret_year_ce'] = df_grp_emp['วันที่เกษียณอายุ'].dt.year - 543
+    df_orig['Max_New'] = df_orig['POS_ID'].map(max_new_map).to_numpy(float)
 
     repl_salaries = np.array([], dtype=float)
     raise_factor  = 1.0 + annual_raise_pct / 100.0
@@ -132,7 +134,7 @@ def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
         sim_year = CURRENT_YEAR + yr_offset
 
         df_orig = df_orig.copy()
-        df_orig['เงินเดือน'] *= raise_factor
+        df_orig['เงินเดือน'] = np.minimum(df_orig['เงินเดือน'] * raise_factor, df_orig['Max_New'])
         repl_salaries = repl_salaries * raise_factor
 
         mask_retiring = df_orig['ret_year_ce'] == sim_year
