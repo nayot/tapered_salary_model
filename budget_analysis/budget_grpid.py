@@ -103,12 +103,13 @@ def _fund_totals_for_year(salaries_arr: np.ndarray, n_emp: int,
 
 def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
                    annual_raise_pct, projection_years,
-                   ss_rate, pf_rate, bm_rate):
+                   ss_rate, pf_rate, bm_rate,
+                   skip_adj: bool = False):
     adj0 = df_grp_emp['final_adj'].to_numpy(float)
     sal0 = df_grp_emp['เงินเดือน'].to_numpy(float)
-    new_sal0 = sal0 + adj0
+    new_sal0 = sal0 if skip_adj else sal0 + adj0
 
-    year0_adj   = float(adj0.sum()) * 12.0
+    year0_adj   = 0.0 if skip_adj else float(adj0.sum()) * 12.0
     year0_total = float(new_sal0.sum()) * 12.0
     year0_funds = _fund_totals_for_year(new_sal0, len(df_grp_emp), CURRENT_YEAR,
                                          ss_rate, pf_rate, bm_rate)
@@ -142,9 +143,8 @@ def project_budget(df_grp_emp, df_ref, pct_val, gamma_val,
             new_sal = np.array([REPLACEMENT_LOOKUP[int(g)]['Min_New'] for g in retirees_grp])
             repl_salaries = np.concatenate([repl_salaries, new_sal])
 
-        adj_arr      = _calc_adj_vectorized(df_orig, df_ref, pct_val, gamma_val)
-        annual_adj   = float(np.nansum(adj_arr)) * 12.0
-        emp_salaries = df_orig['เงินเดือน'].to_numpy(float) + np.nansum(adj_arr) / max(len(df_orig), 1)
+        adj_arr    = np.zeros(len(df_orig)) if skip_adj else _calc_adj_vectorized(df_orig, df_ref, pct_val, gamma_val)
+        annual_adj = float(np.nansum(adj_arr)) * 12.0
 
         # combine actual employees and replacements for fund calculations
         all_salaries = np.concatenate([
@@ -229,6 +229,7 @@ bm_rate = st.sidebar.number_input(
 
 st.sidebar.divider()
 show_fund_graphs = st.sidebar.checkbox("แสดงกราฟงบประมาณเพิ่มเติม", value=False)
+show_baseline    = st.sidebar.checkbox("แสดงกราฟฐาน (ไม่มีเงินเพิ่ม)", value=False)
 
 
 # --- 5. LOGIC FUNCTIONS ---
@@ -417,6 +418,23 @@ if not df_grp_emp.empty:
     year0_total_val = proj_df['เงินเดือนรวมรายปี'].iloc[0]
     year0_grand_val = proj_df['งบประมาณรวมทั้งหมดรายปี'].iloc[0]
 
+    if show_baseline:
+        baseline_df = project_budget(
+            df_grp_emp, df_new_table, s_max_pct, gamma,
+            annual_raise_pct, projection_years,
+            ss_rate if ss_include else 0.0,
+            pf_rate if pf_include else 0.0,
+            bm_rate if bm_include else 0.0,
+            skip_adj=True,
+        )
+        baseline_df['งบประมาณรวมฐานรายปี'] = (
+            baseline_df['เงินเดือนรวมรายปี']
+            + baseline_df['เงินสมทบประกันสังคมรายปี']
+            + baseline_df['เงินสมทบสำรองเลี้ยงชีพรายปี']
+            + (baseline_df['เงินสมทบสวัสดิการรายปี'] if wf_include else 0)
+            + baseline_df['เงินสมทบบูรพามั่นคงรายปี']
+        )
+
     fig_proj = go.Figure()
     fig_proj.add_trace(go.Scatter(
         x=proj_df['ปีไทย (พ.ศ.)'], y=proj_df['เงินเพิ่มรายปี'],
@@ -430,10 +448,20 @@ if not df_grp_emp.empty:
         yaxis='y2', line=dict(color='#ff8c00', width=3, dash='dot'), marker=dict(size=7),
         hovertemplate='%{x}: %{y:,.0f} บาท<extra>เงินเดือนรวม</extra>'
     ))
+    if show_baseline:
+        fig_proj.add_trace(go.Scatter(
+            x=baseline_df['ปีไทย (พ.ศ.)'], y=baseline_df['งบประมาณรวมฐานรายปี'],
+            mode='lines+markers', name='งบฐาน (ไม่มีเงินเพิ่ม)',
+            yaxis='y2', line=dict(color='#aaaaaa', width=2, dash='dot'), marker=dict(size=5),
+            hovertemplate='%{x}: %{y:,.0f} บาท<extra>งบฐาน</extra>'
+        ))
     fig_proj.add_trace(go.Scatter(
         x=proj_df['ปีไทย (พ.ศ.)'], y=proj_df['งบประมาณรวมทั้งหมดรายปี'],
         mode='lines+markers', name='งบประมาณรวมทั้งหมด',
-        yaxis='y2', line=dict(color='#d62728', width=3), marker=dict(size=7),
+        yaxis='y2',
+        fill='tonexty' if show_baseline else None,
+        fillcolor='rgba(214, 39, 40, 0.15)' if show_baseline else None,
+        line=dict(color='#d62728', width=3), marker=dict(size=7),
         hovertemplate='%{x}: %{y:,.0f} บาท<extra>รวมทั้งหมด</extra>'
     ))
 
