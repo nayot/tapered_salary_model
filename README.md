@@ -70,6 +70,15 @@ Use this for university-wide or per-group budget envelopes. Selecting `0: ทั
 - Average top-up per person.
 - A summary table — by group when "all" is selected, or by position when a single group is selected — showing headcount, monthly, and annual totals.
 - A box plot of the distribution of top-ups.
+- **Employer fund contributions** — four additional budget lines can be toggled and rate-configured in the sidebar:
+  - เงินสมทบกองทุนประกันสังคม (Social Security): default 5 %, monthly ceiling steps up by CE year (≤ 2028: 875 THB, 2029–2031: 1 000 THB, ≥ 2032: 1 150 THB).
+  - เงินสมทบกองทุนสำรองเลี้ยงชีพ (Provident Fund): default 5 %.
+  - เงินสมทบกองทุนสวัสดิการ (Welfare Fund): fixed 10 000 THB / person / year.
+  - เงินสมทบกองทุนบูรพามั่นคง (Burapha Fund): default 0.5 %.
+- **Fund breakdown table** at Year 0 — salary + each selected fund, monthly and annual.
+- **Multi-year projection** with a grand total column (salary + all checked funds). Projection models annual raises and retirement/replacement.
+- **Baseline "what-if" overlay** — toggle "แสดงกราฟฐาน" to add a solid grey reference line showing the total budget *without* any tapered adjustment; the gap to the red adjusted-total line is shaded.
+- **Export buttons** — download the projection table and Year-0 breakdown as `.xlsx` (two sheets) or `.pdf` (Thai font, A4 landscape).
 
 ## Adjustment formula
 
